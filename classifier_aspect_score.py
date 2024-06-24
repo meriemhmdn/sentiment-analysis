@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import os
 import json
-#from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize
 #from nltk.stem import SnowballStemmer
 from nltk.corpus import stopwords
 import nltk                         # NLP toolbox
@@ -18,14 +18,17 @@ import pandas as pd
 import re                                  # library for regular expression operations
 import string                              # for string operations
 
+
 from nltk.corpus import stopwords          # module for stop words that come with NLTK
 from nltk.stem import PorterStemmer        # module for stemming
 from nltk.tokenize import TweetTokenizer
 import os
 from unidecode import unidecode
+import random
+
 nltk.download('words')
 
-input_file = "sorted_word_coef_norm.csv"
+input_file = "sorted_word_coef.csv"
 word_coef_dict = {}
 
 with open(input_file, mode='r', newline='', encoding='utf-8') as file:
@@ -36,10 +39,10 @@ with open(input_file, mode='r', newline='', encoding='utf-8') as file:
         word_coef_dict[word] = coef
 
 
-            
+        
         
 frequencies = {}
-file_path = "frequencies2.csv"
+file_path = "frequencies.csv"
 with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
     reader = csv.DictReader(csvfile)
     for row in reader:
@@ -91,6 +94,15 @@ def scrape_imdb_reviews(movie_id):
         else:
             print(f"Erreur lors de la requête : {response.status_code}")
             break
+        '''comment = "The music is awful. The actors are bad. The director is terrible."
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)
+        all_reviews.append(comment)'''
     return all_reviews
 
 def separate_phrases(comments):
@@ -166,7 +178,7 @@ def separate_phrases(comments):
         result.append([phrase.strip() for phrase in phrases])
     return result
 
-def extract_aspect_context(comment, aspect_keywords, window_size=4):
+def extract_aspect_context(comment, aspect_keywords, window_size=3):
     sentences = sent_tokenize(comment)
     aspect_contexts = []
 
@@ -225,25 +237,30 @@ def extract_aspects(comment):
     
     return extracted_aspects
 
+
+
+
 def retrieval_models(key_words):
     key_words_preprocessed = preprocess1(key_words)
     score = {0: 0, 1: 0}
     max_score = 0
     words_count = 0
     for word in key_words_preprocessed:
-        if word in frequencies and word in word_coef_dict_norm:
+        if word in frequencies and word in word_coef_dict:
             score[0] += frequencies[word][1] - word_coef_dict[word]
             score[1] += frequencies[word][0] + word_coef_dict[word]
-            #if word in word_coef_dict_norm:
-            max_score += (word_coef_dict_norm[word]*10)
-                #if ((word_coef_dict[word]+10)/2) > 1:
+            max_score += (word_coef_dict[word]+10)
             words_count += 1
-
+            
     max_class = max(score, key=score.get)
     if (words_count != 0):
         max_score = max_score / words_count
-
+        max_score = max_score/2
     return max_class, max_score
+
+
+
+
 
 def classify_comment(comment):
     classification, score = retrieval_models(comment)
@@ -333,39 +350,7 @@ def calculate_aspect_averages(input_file):
 
     return aspect_averages
 
-def calculate_aspect_averages(input_file):
-    with open(input_file, 'r', encoding='utf-8') as f:
-        results = json.load(f)
 
-    aspect_totals = {}
-    aspect_counts = {}
-    comment_aspect_averages = []
-
-    for filename, file_results in results.items():
-        for line_num, aspect_results in file_results.items():
-            if line_num != 'note_global':
-                all_aspects_present = True
-                aspect_scores = []
-                for aspect in aspect_totals.keys():
-                    if aspect in aspect_results:
-                        score = aspect_results[aspect]['score']
-                        aspect_totals[aspect] += score
-                        aspect_counts[aspect] += 1
-                        aspect_scores.append(score)
-                    else:
-                        all_aspects_present = False
-                        break
-
-                if all_aspects_present and aspect_scores:
-                    comment_average = sum(aspect_scores) / len(aspect_scores)
-                    comment_aspect_averages.append(comment_average)
-
-    # Calculate the aspect averages
-    aspect_averages = {aspect: (aspect_totals[aspect] / aspect_counts[aspect]) for aspect in aspect_totals}
-    overall_average = sum(comment_aspect_averages) / len(comment_aspect_averages) if comment_aspect_averages else 0
-    aspect_averages['note_global'] = overall_average
-
-    return aspect_averages
     
 def score_movie(movie_id):
     all_reviews = scrape_imdb_reviews(movie_id)
@@ -375,28 +360,16 @@ def score_movie(movie_id):
 
     final_results = process_comments_list(comments, aspects)
     save_results_to_json(final_results, output_file)
-    """
-    for filename, file_results in final_results.items():
-        print(f"Results for file '{filename}':")
-        for line_num, aspect_results in file_results.items():
-            if line_num != 'note_global':
-                print(f"Line {line_num}: {aspect_results}")
-        print(f"Global note for '{filename}': {file_results['note_global']}")"""
 
-    
-
-    # Fichier JSON d'entrée
     input_file = 'results_note_glob.json'
 
-    # Calculer les moyennes des aspects
     average_results = calculate_aspect_averages(input_file)
 
-    # Enregistrer les résultats dans un vecteur
     output_file_json = 'average_results.json'
     average_vector = list(average_results.values())
     with open(output_file_json, 'w', encoding='utf-8') as f:
         json.dump(average_results, f, ensure_ascii=False, indent=4)
     return average_vector
 
-movie_id = "tt0084516"
+movie_id = "tt5198890"
 score_movie(movie_id)
